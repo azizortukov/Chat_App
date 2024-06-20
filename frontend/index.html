@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document</title>
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="row mt-5">
+    <div class="col-2 offset-1">
+        <label for="account_select">
+            Select Account:
+        </label>
+        <select id="account_select" class="form-select mb-4">
+        </select>
+        <ul class="list-group" id="chats">
+
+        </ul>
+    </div>
+    <div class="col-7 offset-1 card">
+        <div class="card-header bg-light rounded p-2">
+            <h1 id="selected_user_name"></h1>
+        </div>
+        <div class="card-body" id="msg_history" style="height: 700px; overflow: auto">
+
+        </div>
+        <div class="card-footer bg-light rounded p-2">
+            <form>
+            <div class="input-group">
+                <input type="text" class="form-control">
+                <button class="btn btn-secondary"> send </button>
+            </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- These two js libraries are needed to create WebSocket connection -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    var stompClient = null;
+    function connect() {
+        stompClient = Stomp.over(
+            new SockJS('http://localhost:8080/ws')
+        );
+        stompClient.connect({}, function (frame) {
+            console.log('Connected: ' + frame);
+            // To create and subscribe to new channel for updates
+            stompClient.subscribe(`/topic/${selectedUser.id}`, function (msg) {
+                let message = JSON.parse(msg.body)
+                messages.push(message)
+                drawMessages()
+            });
+        });
+    }
+    let accountSelect = document.getElementById('account_select');
+    let selectedUser;
+    let users = [];
+    let selectedChat;
+    let messages = [];
+    getAllUsers();
+
+    function getAllUsers() {
+        axios({
+            url: 'http://localhost:8080/api/user',
+            method: 'get',
+        }).then(resp => {
+            users = resp.data;
+            drawAccounts();
+        })
+    }
+
+    function drawAccounts() {
+        let innerHtml = '';
+        innerHtml += `<option selected disabled>Select User</option>`
+        users.map(user => {
+            innerHtml += `<option value="${user.id}">${user.fullName}</option>`
+        })
+        accountSelect.innerHTML = innerHtml;
+    }
+
+    function getUserById(userId) {
+        return users.filter(item => item.id == userId)[0];
+    }
+
+    accountSelect.addEventListener("change", (event) => {
+        let userId = event.target.value;
+        selectedUser = getUserById(userId);
+        connect()
+        drawChats();
+    });
+
+    function drawChats() {
+        let innerHtml = '';
+        users.map(item => {
+            if (item.id != selectedUser.id) {
+                innerHtml += `<li class="list-group-item" onclick="selectChat(${item.id})">${item.fullName}</li>`
+            }
+        })
+        document.getElementById('chats').innerHTML = innerHtml;
+    }
+
+    document.forms[0].addEventListener("submit", (event) => {
+        event.preventDefault()
+        let message = event.target[0].value;
+        axios({
+            url: 'http://localhost:8080/api/message',
+            method: 'POST',
+            data: {
+                fromId: selectedUser.id,
+                toId: selectedChat.id,
+                content: message
+            }
+        }).then(resp => {
+            event.target[0].value = ''
+            updateMessages();
+        })
+    })
+
+    function selectChat(userId) {
+        selectedChat = getUserById(userId)
+        document.getElementById('selected_user_name').innerText = selectedChat.fullName;
+        updateMessages();
+    }
+
+    function updateMessages() {
+        axios({
+            url: 'http://localhost:8080/api/message',
+            method:'get',
+            params: {
+                fromId: selectedUser.id,
+                toId: selectedChat.id
+            }
+        }).then(resp => {
+            messages = resp.data
+            drawMessages();
+        })
+    }
+
+    function drawMessages() {
+        let innerHtml = '';
+        messages.map(msg => {
+            if (msg.from.id == selectedUser.id) {
+                innerHtml += `<div class="col-5 p-1 card offset-7 mb-3">
+                        ${msg.content}
+                        <p class="small text-end">${msg.createdAt}</p>
+                    </div>
+                    `
+            }else {
+                innerHtml += `<div class="col-5 p-1 card mb-3">
+                        ${msg.content}
+                        <p>${msg.createdAt}</p>
+                    </div>
+                    `
+            }
+        } )
+        document.getElementById('msg_history').innerHTML = innerHtml;
+    }
+</script>
+</body>
+</html>
