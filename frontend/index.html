@@ -26,10 +26,10 @@
         </div>
         <div class="card-footer bg-light rounded p-2">
             <form>
-            <div class="input-group">
-                <input type="text" class="form-control">
-                <button class="btn btn-secondary"> send </button>
-            </div>
+                <div class="input-group">
+                    <input type="text" class="form-control">
+                    <button class="btn btn-secondary"> send</button>
+                </div>
             </form>
         </div>
     </div>
@@ -42,26 +42,35 @@
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
     var stompClient = null;
+
     function connect() {
         stompClient = Stomp.over(
             new SockJS('http://localhost:8080/ws')
         );
         stompClient.connect({}, function (frame) {
-            console.log('Connected: ' + frame);
-            // To create and subscribe to new channel for updates
             stompClient.subscribe(`/topic/${selectedUser.id}`, function (msg) {
                 let message = JSON.parse(msg.body)
                 messages.push(message)
                 drawMessages()
+                var messageContainer = document.getElementById('msg_history');
+                messageContainer.scrollTop = messageContainer.scrollHeight;
             });
         });
     }
+
     let accountSelect = document.getElementById('account_select');
     let selectedUser;
     let users = [];
     let selectedChat;
     let messages = [];
     getAllUsers();
+
+    window.onload = function scrollBottom() {
+        var messageContainer = document.getElementById('msg_history');
+        messageContainer.scrollTop = messageContainer.scrollHeight;
+    };
+
+
 
     function getAllUsers() {
         axios({
@@ -89,8 +98,11 @@
     accountSelect.addEventListener("change", (event) => {
         let userId = event.target.value;
         selectedUser = getUserById(userId);
+        selectedChat = null;
+        messages = []
         connect()
         drawChats();
+        selectChat(null)
     });
 
     function drawChats() {
@@ -121,6 +133,11 @@
     })
 
     function selectChat(userId) {
+        if (userId == null) {
+            document.getElementById('selected_user_name').innerText = ''
+            drawMessages()
+            return
+        }
         selectedChat = getUserById(userId)
         document.getElementById('selected_user_name').innerText = selectedChat.fullName;
         updateMessages();
@@ -129,7 +146,7 @@
     function updateMessages() {
         axios({
             url: 'http://localhost:8080/api/message',
-            method:'get',
+            method: 'GET',
             params: {
                 fromId: selectedUser.id,
                 toId: selectedChat.id
@@ -144,19 +161,19 @@
         let innerHtml = '';
         messages.map(msg => {
             if (msg.from.id == selectedUser.id) {
-                innerHtml += `<div class="col-5 p-1 card offset-7 mb-3">
+                innerHtml += `<div class="col-7 p-1 card offset-5 mb-3 px-2">
                         ${msg.content}
-                        <p class="small text-end">${msg.createdAt}</p>
+                        <p class="small text-end mt-3 text-secondary" style="margin-bottom: 0">${new Date(msg.createdAt).toDateString()}</p>
                     </div>
                     `
-            }else {
-                innerHtml += `<div class="col-5 p-1 card mb-3">
+            } else {
+                innerHtml += `<div class="col-7 p-1 card mb-3 px-2">
                         ${msg.content}
-                        <p>${msg.createdAt}</p>
+                        <p class="small mt-3 text-secondary" style="margin-bottom: 0">${new Date(msg.createdAt).toDateString()}</p>
                     </div>
                     `
             }
-        } )
+        })
         document.getElementById('msg_history').innerHTML = innerHtml;
     }
 </script>

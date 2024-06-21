@@ -10,9 +10,9 @@ public interface MessageRepository extends JpaRepository<Message, Integer> {
 
     @Query(nativeQuery = true, value = """
             select * from message
-            where from_id <> :fromId and to_id <> :toId
-            or to_id <> :fromId and from_id <> :toId
+            where (from_id = :fromId and to_id = :toId)
+            or (to_id = :fromId and from_id = :toId)
             order by created_at
             """)
-    public List<Message> findAllByFromAndTo(Integer fromId, Integer toId);
+    List<Message> findAllByFromAndTo(Integer fromId, Integer toId);
 }
